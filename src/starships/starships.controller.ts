@@ -33,7 +33,7 @@ export class StarshipsController {
 
   @Patch(':id')
   update(
-    @Param('+id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateStarshipDto: UpdateStarshipDto,
   ) {
     return this.starshipsService.update(id, updateStarshipDto);
