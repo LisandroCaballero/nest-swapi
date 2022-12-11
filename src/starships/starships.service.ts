@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {  Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CreateStarshipDto } from './dto/create-starship.dto';
 import { UpdateStarshipDto } from './dto/update-starship.dto';
 import { Starship } from './entities/starship.entity';
@@ -13,6 +19,7 @@ export class StarshipsService {
   constructor(
     @InjectRepository(Starship)
     private readonly starshipRepository: Repository<Starship>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createStarshipDto: CreateStarshipDto) {
@@ -51,15 +58,27 @@ export class StarshipsService {
 
   async update(id: string, updateStarshipDto: UpdateStarshipDto) {
     const starship = await this.starshipRepository.preload({
-      id: id,
+      id,
       ...updateStarshipDto,
     });
+
     if (!starship)
       throw new NotFoundException(`Starship with id: ${id} not found`);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      await this.starshipRepository.save(starship);
+      await queryRunner.manager.save(starship);
+
+      await queryRunner.commitTransaction();
+      await queryRunner.release();
+
       return starship;
     } catch (error) {
+      await queryRunner.rollbackTransaction();
+      await queryRunner.release();
       this.handleExceptions(error);
     }
   }
